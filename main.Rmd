@@ -69,7 +69,7 @@ oncology_index_date <- glue("CREATE index oncology_filter_index_appt_dttm on ONC
 
 update_columns_ethnicity <- glue("UPDATE ONCOLOGY_ACCESS
    SET ETHNICITY_GROUPER = NVL(ETHNICITY_GROUPER, 'BLANK/UNKNOWN')
- WHERE ETHNICITY IS NULL;")
+ WHERE ETHNIC_BACKGROUND IS NULL;")
 
 update_columns_race <- glue("UPDATE ONCOLOGY_ACCESS
    SET RACE = NVL(RACE, 'BLANK')
