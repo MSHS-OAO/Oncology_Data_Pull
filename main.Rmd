@@ -18,7 +18,7 @@ print("con")
 
 drop_query <- glue("DROP TABLE ONCOLOGY_ACCESS_UPDATED")
 
-date_1 <- "2019-01-01"
+date_1 <- "2024-05-01"
 date_2 <- Sys.Date() - 1
 reg_exp <- "\\[(.*?)\\]"
 
@@ -48,12 +48,12 @@ FROM(
         a.LOS_CODE, b.DEPARTMENT_NAME AS DEPT_NAME_DNU, b.DEPARTMENT_ID, b.SITE, c.ASSOCIATIONLISTA, c.ASSOCIATIONLISTB, c.ASSOCIATIONLISTT, 
         a.PAT_ID,
         c.INPERSONVSTELE, d.DISEASE_GROUP, d.DISEASE_GROUP_B AS DISEASE_GROUP_DETAIL, d.PROVIDER_TYPE, e.DX_DETAIL, e.DX_GROUPER, i.RACE, i.MYCHART_STATUS, z.ETHNIC_BACKGROUND,
-        TRIM(TRAILING FROM REGEXP_REPLACE(a.PROV_NAME_WID, '{reg_exp}', '')) AS Provider, 
-        TRIM(TRAILING FROM REGEXP_REPLACE(a.REFERRING_PROV_NAME_WID, '{reg_exp}', '')) AS Referring_Provider 
+        TRIM(TRAILING FROM REGEXP_REPLACE(a.PROV_NAME_WID, '{{reg_exp}}', '')) AS Provider, 
+        TRIM(TRAILING FROM REGEXP_REPLACE(a.REFERRING_PROV_NAME_WID, '{{reg_exp}}', '')) AS Referring_Provider 
         FROM MV_DM_PATIENT_ACCESS a 
                             INNER JOIN ONCOLOGY_DEPARTMENT_GROUPINGS b on a.DEPARTMENT_ID = b.DEPARTMENT_ID and 
-                            a.CONTACT_DATE BETWEEN TO_DATE('{date_1} 00:00:00', 'YYYY-MM-DD HH24:MI:SS') 
-                            AND TO_DATE('{date_2} 23:59:59', 'YYYY-MM-DD HH24:MI:SS') 
+                            a.CONTACT_DATE BETWEEN TO_DATE('{{date_1}} 00:00:00', 'YYYY-MM-DD HH24:MI:SS') 
+                            AND TO_DATE('{{date_2}} 23:59:59', 'YYYY-MM-DD HH24:MI:SS') 
                           LEFT JOIN ONCOLOGY_PRC_GROUPINGS c on a.PRC_NAME = c.PRC_NAME 
                           LEFT JOIN ONCOLOGY_DISEASE_GROUPINGS d on a.PROV_ID = d.EPIC_PROVIDER_ID 
                           LEFT JOIN ONCOLOGY_DX_CODES e on a.PRIMARY_DX_CODE = e.PRIMARY_DX_CODE 
@@ -67,7 +67,7 @@ FROM(
         LEFT JOIN ONCOLOGY_MYCHART_STATUS_GROUPER p on LOWER(g.MYCHART_STATUS) = LOWER(p.MYCHART_STATUS)
         LEFT JOIN ONCOLOGY_ETHNICITY_GROUPER m on LOWER(g.ETHNIC_BACKGROUND) = LOWER(m.ETHNIC_BACKGROUND)
     ) h 
-WHERE h.Counts = 1")
+WHERE h.Counts = 1", .open = "{{", .close = "}}")
 
 oncology_index <- glue("CREATE index oncology_filter_index_upt on ONCOLOGY_ACCESS_UPDATED (SITE, DEPARTMENT_NAME, DX_GROUPER, APPT_DTTM, APPT_DAY)")
 oncology_index_date <- glue("CREATE index oncology_filter_index_appt_dttm_upt on ONCOLOGY_ACCESS_UPDATED (APPT_DTTM, DEPARTMENT_NAME)")
