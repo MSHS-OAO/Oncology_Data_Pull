@@ -18,7 +18,7 @@ print("con")
 
 drop_query <- glue("DROP TABLE ONCOLOGY_ACCESS_UPDATED")
 
-date_1 <- "2024-05-01"
+date_1 <- "2019-01-01"
 date_2 <- Sys.Date() - 1
 reg_exp <- "\\[(.*?)\\]"
 
