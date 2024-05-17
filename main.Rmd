@@ -100,9 +100,9 @@ update_columns_dx_grouper <- glue("UPDATE ONCOLOGY_ACCESS_UPDATED
    SET DX_GROUPER = NVL(DX_GROUPER, 'Non-Cancer')
  WHERE DX_GROUPER IS NULL")
 
-oncology_active_treatment_table_drop <- glue("DROP TABLE ONCOOGY_ACTIVE_TREATMENT_MRN")
+oncology_active_treatment_table_drop <- glue("DROP TABLE ONCOLOGY_ACTIVE_TREATMENT_MRN")
 
-oncology_active_treatment_table <- glue ("CREATE TABLE ONCOOGY_ACTIVE_TREATMENT_MRN AS
+oncology_active_treatment_table <- glue ("CREATE TABLE ONCOLOGY_ACTIVE_TREATMENT_MRN AS
 SELECT DISTINCT MRN FROM ONCOLOGY_ACCESS WHERE APPT_STATUS = 'Arrived' AND ASSOCIATIONLISTA = 'Treatment'")
 
 tryCatch({
@@ -121,7 +121,7 @@ if(dbExistsTable(con, "ONCOLOGY_ACCESS")) {
   dbExecute(con,update_columns_ref_provider)
   dbExecute(con,update_columns_dx_grouper)
 
-if(dbExistsTable(con, "ONCOOGY_ACTIVE_TREATMENT_MRN")) {
+if(dbExistsTable(con, "ONCOLOGY_ACTIVE_TREATMENT_MRN")) {
         dbExecute(con,oncology_active_treatment_table_drop)
   }
   dbExecute(con,oncology_active_treatment_table)
