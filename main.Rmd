@@ -18,7 +18,7 @@ print("con")
 
 drop_query <- glue("DROP TABLE ONCOLOGY_ACCESS_UPDATED")
 
-date_1 <- "2019-01-01"
+date_1 <- "2024-01-01"
 date_2 <- Sys.Date() - 1
 reg_exp <- "\\[(.*?)\\]"
 
@@ -96,6 +96,10 @@ update_columns_ref_provider <- glue("UPDATE ONCOLOGY_ACCESS_UPDATED
    SET REFERRING_PROVIDER = NVL(REFERRING_PROVIDER, 'Unknown/Blank')
  WHERE REFERRING_PROVIDER IS NULL")
 
+update_columns_dx_grouper <- glue("UPDATE ONCOLOGY_ACCESS_UPDATED
+   SET DX_GROUPER = NVL(DX_GROUPER, 'Non-Cancer')
+ WHERE DX_GROUPER IS NULL")
+
 tryCatch({
 dbBegin(con)
 if(dbExistsTable(con, "ONCOLOGY_ACCESS_UPDATED")) {
@@ -110,6 +114,7 @@ if(dbExistsTable(con, "ONCOLOGY_ACCESS_UPDATED")) {
   dbExecute(con,update_columns_race)
   dbExecute(con,update_columns_my_chart)
   dbExecute(con,update_columns_ref_provider)
+  dbExecute(con,update_columns_dx_grouper)
   dbCommit(con)
 
   
