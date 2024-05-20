@@ -52,10 +52,10 @@ FROM(
         TRIM(TRAILING FROM REGEXP_REPLACE(a.REFERRING_PROV_NAME_WID, '{{reg_exp}}', '')) AS Referring_Provider 
         FROM MV_DM_PATIENT_ACCESS a 
                             INNER JOIN ONCOLOGY_DEPARTMENT_GROUPINGS b on a.DEPARTMENT_ID = b.DEPARTMENT_ID and 
-                            a.CONTACT_DATE BETWEEN TO_DATE('{{date_1}} 00:00:00', 'YYYY-MM-DD HH24:MI:SS') 
+                            (a.CONTACT_DATE BETWEEN TO_DATE('{{date_1}} 00:00:00', 'YYYY-MM-DD HH24:MI:SS') 
                             AND TO_DATE('{{date_2}} 23:59:59', 'YYYY-MM-DD HH24:MI:SS') 
                                 OR a.APPT_MADE_DTTM BETWEEN TO_DATE('{date_1} 00:00:00', 'YYYY-MM-DD HH24:MI:SS')
-                                AND TO_DATE('{date_2} 23:59:59', 'YYYY-MM-DD HH24:MI:SS')
+                                AND TO_DATE('{date_2} 23:59:59', 'YYYY-MM-DD HH24:MI:SS'))
                           LEFT JOIN ONCOLOGY_PRC_GROUPINGS c on a.PRC_NAME = c.PRC_NAME 
                           LEFT JOIN ONCOLOGY_DISEASE_GROUPINGS d on a.PROV_ID = d.EPIC_PROVIDER_ID 
                           LEFT JOIN ONCOLOGY_DX_CODES e on a.PRIMARY_DX_CODE = e.PRIMARY_DX_CODE 
