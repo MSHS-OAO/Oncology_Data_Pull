@@ -96,7 +96,7 @@ update_columns_ref_provider <- glue("UPDATE ONCOLOGY_ACCESS
    SET REFERRING_PROVIDER = NVL(REFERRING_PROVIDER, 'Unknown/Blank')
  WHERE REFERRING_PROVIDER IS NULL")
 
-update_columns_dx_grouper <- glue("UPDATE ONCOLOGY_ACCESS_UPDATED
+update_columns_dx_grouper <- glue("UPDATE ONCOLOGY_ACCESS
    SET DX_GROUPER = NVL(DX_GROUPER, 'Non-Cancer')
  WHERE DX_GROUPER IS NULL")
 
