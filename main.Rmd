@@ -16,11 +16,12 @@ library(pool)
 con <- dbConnect(drv = odbc(), "OAO Cloud DB", timeout = 30)
 print("con")
 
-drop_query <- glue("DROP TABLE ONCOLOGY_ACCESS")
+drop_query <- glue("DROP TABLE ONCOLOGY_ACCESS_UPDATED")
 
-date_1 <- "2019-01-01"
+date_1 <- "2024-01-01"
 date_2 <- Sys.Date() - 1
 reg_exp <- "\\[(.*?)\\]"
+
 
 update_query <- glue("CREATE TABLE ONCOLOGY_ACCESS AS 
 SELECT CASE WHEN h.DEPT_NAME_DNU like 'X_%' AND TO_CHAR(EXTRACT(YEAR FROM h.APPT_DTTM)) = '2024'  AND APPT_STATUS = 'Arrived' THEN REGEXP_REPLACE(h.DEPT_NAME_DNU, '^[X_]{2}', 'X_2024_') ELSE h.DEPT_NAME_DNU END AS DEPARTMENT_NAME, h.*, nvl(h.NEW_PT_ARRIVED_RAW, 'ESTABLISHED') AS NEW_PT_ARRIVED, count(*) over () totalRows
@@ -71,45 +72,41 @@ FROM(
     ) h 
 WHERE h.Counts = 1", .open = "{{", .close = "}}")
 
-oncology_index <- glue("CREATE index oncology_filter_index on ONCOLOGY_ACCESS (SITE, DEPARTMENT_NAME, DX_GROUPER, APPT_DTTM, APPT_DAY)")
-oncology_index_date <- glue("CREATE index oncology_filter_index_appt_dttm on ONCOLOGY_ACCESS (APPT_DTTM, DEPARTMENT_NAME)")
+oncology_index <- glue("CREATE index oncology_filter_index_upt on ONCOLOGY_ACCESS_UPDATED (SITE, DEPARTMENT_NAME, DX_GROUPER, APPT_DTTM, APPT_DAY)")
+oncology_index_date <- glue("CREATE index oncology_filter_index_appt_dttm_upt on ONCOLOGY_ACCESS_UPDATED (APPT_DTTM, DEPARTMENT_NAME)")
 
-update_columns_ethnicity <- glue("UPDATE ONCOLOGY_ACCESS
+update_columns_ethnicity <- glue("UPDATE ONCOLOGY_ACCESS_UPDATED
    SET ETHNICITY_GROUPER = NVL(ETHNICITY_GROUPER, 'BLANK/UNKNOWN')
  WHERE ETHNIC_BACKGROUND IS NULL;")
 
-update_columns_race <- glue("UPDATE ONCOLOGY_ACCESS
+update_columns_race <- glue("UPDATE ONCOLOGY_ACCESS_UPDATED
    SET RACE = NVL(RACE, 'BLANK')
  WHERE RACE IS NULL")
 
-update_columns_race_grouper <- glue("UPDATE ONCOLOGY_ACCESS
+update_columns_race_grouper <- glue("UPDATE ONCOLOGY_ACCESS_UPDATED
    SET RACE_GROUPER = NVL(RACE_GROUPER, 'BLANK/UNKNOWN')
  WHERE RACE IS NULL")
 
-update_columns_race_detail <- glue("UPDATE ONCOLOGY_ACCESS
+update_columns_race_detail <- glue("UPDATE ONCOLOGY_ACCESS_UPDATED
    SET RACE_GROUPER_DETAIL = NVL(RACE_GROUPER_DETAIL, 'BLANK/UNKNOWN')
  WHERE RACE IS NULL")
 
-update_columns_my_chart <- glue("UPDATE ONCOLOGY_ACCESS
+update_columns_my_chart <- glue("UPDATE ONCOLOGY_ACCESS_UPDATED
    SET MYCHART_STATUS_GROUPER = NVL(MYCHART_STATUS_GROUPER, 'Not Activated')
  WHERE MYCHART_STATUS IS NULL")
 
-update_columns_ref_provider <- glue("UPDATE ONCOLOGY_ACCESS
+update_columns_ref_provider <- glue("UPDATE ONCOLOGY_ACCESS_UPDATED
    SET REFERRING_PROVIDER = NVL(REFERRING_PROVIDER, 'Unknown/Blank')
  WHERE REFERRING_PROVIDER IS NULL")
 
-update_columns_dx_grouper <- glue("UPDATE ONCOLOGY_ACCESS
+
+update_columns_dx_grouper <- glue("UPDATE ONCOLOGY_ACCESS_UPDATED
    SET DX_GROUPER = NVL(DX_GROUPER, 'Non-Cancer')
  WHERE DX_GROUPER IS NULL")
 
-oncology_active_treatment_table_drop <- glue("DROP TABLE ONCOLOGY_ACTIVE_TREATMENT_MRN")
-
-oncology_active_treatment_table <- glue ("CREATE TABLE ONCOLOGY_ACTIVE_TREATMENT_MRN AS
-SELECT DISTINCT MRN FROM ONCOLOGY_ACCESS WHERE APPT_STATUS = 'Arrived' AND ASSOCIATIONLISTA = 'Treatment'")
-
 tryCatch({
 dbBegin(con)
-if(dbExistsTable(con, "ONCOLOGY_ACCESS")) {
+if(dbExistsTable(con, "ONCOLOGY_ACCESS_UPDATED")) {
         dbExecute(con,drop_query)
   }
   dbExecute(con,update_query)
@@ -122,13 +119,6 @@ if(dbExistsTable(con, "ONCOLOGY_ACCESS")) {
   dbExecute(con,update_columns_my_chart)
   dbExecute(con,update_columns_ref_provider)
   dbExecute(con,update_columns_dx_grouper)
-
-if(dbExistsTable(con, "ONCOLOGY_ACTIVE_TREATMENT_MRN")) {
-        dbExecute(con,oncology_active_treatment_table_drop)
-  }
-  dbExecute(con,oncology_active_treatment_table)
-
-
   dbCommit(con)
 
   
