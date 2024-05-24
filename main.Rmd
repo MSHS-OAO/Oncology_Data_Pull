@@ -12,8 +12,8 @@ library(tidyverse)
 library(DBI)
 library(pool)
 
-#con <- dbPool(drv = odbc::odbc(), dsn = "OAO Cloud DB", timeout = 30)
-con <- dbConnect(drv = odbc(), "OAO Cloud DB", timeout = 30)
+
+con <- dbConnect(drv = odbc(), "OAO Cloud DB Staging", timeout = 30)
 print("con")
 
 drop_query <- glue("DROP TABLE ONCOLOGY_ACCESS")
