@@ -99,8 +99,8 @@ update_columns_ref_provider <- glue("UPDATE ONCOLOGY_ACCESS
  WHERE REFERRING_PROVIDER IS NULL")
 
 update_columns_dx_grouper <- glue("UPDATE ONCOLOGY_ACCESS
-   SET DX_GROUP = NVL(DX_GROUP, 'Non-Cancer')
- WHERE DX_GROUP IS NULL")
+   SET DX_GROUPER = NVL(DX_GROUPER, 'Non-Cancer')
+ WHERE DX_GROUPER IS NULL")
 
 update_columns_dx_detail <- glue("UPDATE ONCOLOGY_ACCESS
    SET DX_DETAIL = NVL(DX_DETAIL, 'Non-Cancer')
