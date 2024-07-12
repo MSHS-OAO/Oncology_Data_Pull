@@ -106,6 +106,14 @@ update_columns_dx_detail <- glue("UPDATE ONCOLOGY_ACCESS
    SET DX_DETAIL = NVL(DX_DETAIL, 'Non-Cancer')
  WHERE DX_DETAIL IS NULL")
 
+update_genetics_infusion <- glue("UPDATE ONCOLOGY_ACCESS
+   SET ASSOCIATIONLISTA = 'Treatment',
+   ASSOCIATIONLISTB = 'Treatment Visit',
+   ASSOCIATIONLISTT = 'Genetic Infusion',
+   INPERSONVSTELE = 'In Person'
+ WHERE DEPARTMENT_ID =  '8458037'
+")
+
 oncology_filters_tbl <- glue("CREATE TABLE ONCOLOGY_FILTERS_UPDATED AS
 SELECT DISTINCT SITE, DEPARTMENT_NAME, PROVIDER, PROVIDER_TYPE, DISEASE_GROUP, DISEASE_GROUP_DETAIL, INPERSONVSTELE, ASSOCIATIONLISTA, ASSOCIATIONLISTB, ASSOCIATIONLISTT, REFERRING_PROVIDER, REFERRING_PROV_ID, DX_GROUPER, APPT_STATUS FROM ONCOLOGY_ACCESS")
 
@@ -132,6 +140,8 @@ if(dbExistsTable(con, "ONCOLOGY_ACCESS")) {
   dbExecute(con,update_columns_ref_provider)
   dbExecute(con,update_columns_dx_grouper)
   dbExecute(con,update_columns_dx_detail)
+  dbExecute(con,update_genetics_infusion)
+
 
 
 if(dbExistsTable(con, "ONCOLOGY_ACTIVE_TREATMENT_MRN")) {
