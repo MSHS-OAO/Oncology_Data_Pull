@@ -23,7 +23,7 @@ date_2 <- Sys.Date() - 1
 reg_exp <- "\\[(.*?)\\]"
 
 update_query <- glue("CREATE TABLE ONCOLOGY_ACCESS AS 
-SELECT CASE WHEN h.DEPT_NAME_DNU like 'X_%' AND TO_CHAR(EXTRACT(YEAR FROM h.APPT_DTTM)) = '2024' THEN REGEXP_REPLACE(h.DEPT_NAME_DNU, '^[X_]{2}', 'X_2024_') ELSE h.DEPT_NAME_DNU END AS DEPARTMENT_NAME, h.*, nvl(h.NEW_PT_ARRIVED_RAW, 'ESTABLISHED') AS NEW_PT_ARRIVED, nvl(h.NEW_PT_SCHEDULED_DNU, 'ESTABLISHED') AS NEW_PT_SCHEDULED, count(*) over () totalRows
+SELECT CASE WHEN h.DEPT_NAME_DNU like 'X_%' AND TO_CHAR(EXTRACT(YEAR FROM h.APPT_DTTM)) = '2024' THEN REGEXP_REPLACE(h.DEPT_NAME_DNU, '^[X_]{2}', 'X_2024_') ELSE h.DEPT_NAME_DNU END AS DEPARTMENT_NAME, h.*, nvl(h.NEW_PT_ARRIVED_RAW, 'ESTABLISHED') AS NEW_PT_ARRIVED, count(*) over () totalRows
 FROM( 
 SELECT g.*, j.RACE_GROUPER, j.RACE_GROUPER_DETAIL, p.MYCHART_STATUS_GROUPER, m.ETHNICITY_GROUPER,
 ROW_NUMBER() OVER (PARTITION BY g.MRN, g.APPT_DTTM, g.APPT_TYPE, g.PROVIDER, g.APPT_STATUS ORDER BY g.MRN, g.APPT_DTTM, g.APPT_TYPE, g.PROVIDER, g.APPT_STATUS) AS Counts 
@@ -43,7 +43,7 @@ FROM(
         (a.Appt_DTTM - a.APPT_MADE_DTTM) AS Wait_Time,
         trunc(a.APPT_MADE_DTTM) AS APPT_MADE_DATE_YEAR,
         TO_CHAR(a.APPT_MADE_DTTM, 'yyyy-mm') AS Appt_Made_Month_Year,
-        REGEXP_SUBSTR(a.PRC_NAME, 'NEW') AS NEW_PT_SCHEDULED_DNU,
+        REGEXP_SUBSTR(a.PRC_NAME, 'NEW') AS NEW_PT_SCHEDULED,
         REGEXP_SUBSTR(a.LOS_NAME, 'NEW') AS NEW_PT_ARRIVED_RAW,
         a.LOS_CODE, b.DEPARTMENT_NAME AS DEPT_NAME_DNU, b.DEPARTMENT_ID, b.SITE, c.ASSOCIATIONLISTA, c.ASSOCIATIONLISTB, c.ASSOCIATIONLISTT, 
         a.PAT_ID,
@@ -106,6 +106,10 @@ update_columns_dx_detail <- glue("UPDATE ONCOLOGY_ACCESS
    SET DX_DETAIL = NVL(DX_DETAIL, 'Non-Cancer')
  WHERE DX_DETAIL IS NULL")
 
+update_columns_new_pt_scheduled <- glue("UPDATE ONCOLOGY_ACCESS
+   SET NEW_PT_SCHEDULED = NVL(NEW_PT_SCHEDULED  , 'ESTABLISHED')
+ WHERE NEW_PT_SCHEDULED IS NULL")
+
 update_genetics_infusion <- glue("UPDATE ONCOLOGY_ACCESS
    SET ASSOCIATIONLISTA = 'Treatment',
    ASSOCIATIONLISTB = 'Treatment Visit',
@@ -141,6 +145,8 @@ if(dbExistsTable(con, "ONCOLOGY_ACCESS")) {
   dbExecute(con,update_columns_dx_grouper)
   dbExecute(con,update_columns_dx_detail)
   dbExecute(con,update_genetics_infusion)
+  dbExecute(con,update_columns_new_pt_scheduled)
+
 
 
 
