@@ -90,7 +90,7 @@ update_columns_ref_provider <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_TEST', 'REFE
 
 update_columns_dx_grouper <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_TEST', 'DX_GROUPER', 'DX_GROUPER', 'Non-Cancer'); END;")
 
-update_columns_dx_detail <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_TEST', 'DX_DETAI', 'DX_DETAI', 'Non-Cancer'); END;")
+update_columns_dx_detail <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_TEST', 'DX_DETAIL', 'DX_DETAIL', 'Non-Cancer'); END;")
 
 update_columns_new_pt_scheduled <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_TEST', 'NEW_PT_SCHEDULED', 'NEW_PT_SCHEDULED', 'ESTABLISHED'); END;")
 
