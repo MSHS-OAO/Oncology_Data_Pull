@@ -22,7 +22,7 @@ date_1 <- "2019-01-01"
 date_2 <- Sys.Date() - 1
 reg_exp <- "\\[(.*?)\\]"
 
-update_query <- glue("CREATE TABLE ONCOLOGY_ACCESS AS 
+update_query <- glue("CREATE TABLE ONCOLOGY_ACCESS  AS 
 SELECT CASE WHEN h.DEPT_NAME_DNU like 'X_%' AND TO_CHAR(EXTRACT(YEAR FROM h.APPT_DTTM)) = '2024' THEN REGEXP_REPLACE(h.DEPT_NAME_DNU, '^[X_]{2}', 'X_2024_') ELSE h.DEPT_NAME_DNU END AS DEPARTMENT_NAME, h.*, nvl(h.NEW_PT_ARRIVED_RAW, 'ESTABLISHED') AS NEW_PT_ARRIVED, count(*) over () totalRows
 FROM( 
 SELECT g.*, j.RACE_GROUPER, j.RACE_GROUPER_DETAIL, p.MYCHART_STATUS_GROUPER, m.ETHNICITY_GROUPER,
@@ -71,44 +71,34 @@ FROM(
     ) h 
 WHERE h.Counts = 1", .open = "{{", .close = "}}")
 
-oncology_index <- glue("CREATE index oncology_filter_index on ONCOLOGY_ACCESS (SITE, DEPARTMENT_NAME, DX_GROUPER, APPT_DTTM, APPT_DAY)")
-oncology_index_date <- glue("CREATE index oncology_filter_index_appt_dttm on ONCOLOGY_ACCESS (APPT_DTTM, DEPARTMENT_NAME)")
+oncology_index <- glue("CREATE index oncology_filter_index on ONCOLOGY_ACCESS  (SITE, DEPARTMENT_NAME, DX_GROUPER, APPT_DTTM, APPT_DAY)")
+oncology_index_date <- glue("CREATE index oncology_filter_index_appt_dttm  on ONCOLOGY_ACCESS  (APPT_DTTM, DEPARTMENT_NAME)")
 
-update_columns_ethnicity <- glue("UPDATE ONCOLOGY_ACCESS
-   SET ETHNICITY_GROUPER = NVL(ETHNICITY_GROUPER, 'BLANK/UNKNOWN')
- WHERE ETHNIC_BACKGROUND IS NULL;")
 
-update_columns_race <- glue("UPDATE ONCOLOGY_ACCESS
-   SET RACE = NVL(RACE, 'BLANK')
- WHERE RACE IS NULL")
+update_columns_ethnicity <- glue("BEGIN fill_na('ONCOLOGY_ACCESS', 'ETHNICITY_GROUPER',
+                                 'ETHNIC_BACKGROUND', 'BLANK/UNKNOWN'); END;")
 
-update_columns_race_grouper <- glue("UPDATE ONCOLOGY_ACCESS
-   SET RACE_GROUPER = NVL(RACE_GROUPER, 'BLANK/UNKNOWN')
- WHERE RACE IS NULL")
+update_columns_race <- glue("BEGIN fill_na('ONCOLOGY_ACCESS ', 'RACE', 'RACE', 'BLANK'); END;")
 
-update_columns_race_detail <- glue("UPDATE ONCOLOGY_ACCESS
-   SET RACE_GROUPER_DETAIL = NVL(RACE_GROUPER_DETAIL, 'BLANK/UNKNOWN')
- WHERE RACE IS NULL")
+update_columns_race_grouper <- glue("BEGIN fill_na('ONCOLOGY_ACCESS', 'RACE_GROUPER', 'RACE_GROUPER', 'BLANK/UNKNOWN'); END;")
+
+update_columns_race_detail <- glue("BEGIN fill_na('ONCOLOGY_ACCESS', 'RACE_GROUPER_DETAIL', 'RACE_GROUPER_DETAIL', 'BLANK/UNKNOWN'); END;")
+
 
 update_columns_my_chart <- glue("UPDATE ONCOLOGY_ACCESS
    SET MYCHART_STATUS_GROUPER = NVL(MYCHART_STATUS_GROUPER, 'Not Activated')
  WHERE MYCHART_STATUS IS NULL")
 
-update_columns_ref_provider <- glue("UPDATE ONCOLOGY_ACCESS
-   SET REFERRING_PROVIDER = NVL(REFERRING_PROVIDER, 'Unknown/Blank')
- WHERE REFERRING_PROVIDER IS NULL")
+update_columns_my_chart <- glue("BEGIN fill_na('ONCOLOGY_ACCESS', 'MYCHART_STATUS_GROUPER', 'MYCHART_STATUS', 'Not Activated'); END;")
 
-update_columns_dx_grouper <- glue("UPDATE ONCOLOGY_ACCESS
-   SET DX_GROUPER = NVL(DX_GROUPER, 'Non-Cancer')
- WHERE DX_GROUPER IS NULL")
+update_columns_ref_provider <- glue("BEGIN fill_na('ONCOLOGY_ACCESS', 'REFERRING_PROVIDER', 'REFERRING_PROVIDER', 'Unknown/Blank'); END;")
 
-update_columns_dx_detail <- glue("UPDATE ONCOLOGY_ACCESS
-   SET DX_DETAIL = NVL(DX_DETAIL, 'Non-Cancer')
- WHERE DX_DETAIL IS NULL")
+update_columns_dx_grouper <- glue("BEGIN fill_na('ONCOLOGY_ACCESS', 'DX_GROUPER', 'DX_GROUPER', 'Non-Cancer'); END;")
 
-update_columns_new_pt_scheduled <- glue("UPDATE ONCOLOGY_ACCESS
-   SET NEW_PT_SCHEDULED = NVL(NEW_PT_SCHEDULED  , 'ESTABLISHED')
- WHERE NEW_PT_SCHEDULED IS NULL")
+update_columns_dx_detail <- glue("BEGIN fill_na('ONCOLOGY_ACCESS', 'DX_DETAIL', 'DX_DETAIL', 'Non-Cancer'); END;")
+
+update_columns_new_pt_scheduled <- glue("BEGIN fill_na('ONCOLOGY_ACCESS', 'NEW_PT_SCHEDULED', 'NEW_PT_SCHEDULED', 'ESTABLISHED'); END;")
+
 
 update_genetics_infusion <- glue("UPDATE ONCOLOGY_ACCESS
    SET ASSOCIATIONLISTA = 'Treatment',
