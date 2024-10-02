@@ -16,13 +16,13 @@ library(pool)
 con <- dbConnect(drv = odbc(), "OAO Cloud DB", timeout = 30)
 print("con")
 
-drop_query <- glue("DROP TABLE ONCOLOGY_ACCESS_TEST")
+drop_query <- glue("DROP TABLE ONCOLOGY_ACCESS")
 
 date_1 <- "2019-01-01"
 date_2 <- Sys.Date() - 1
 reg_exp <- "\\[(.*?)\\]"
 
-update_query <- glue("CREATE TABLE ONCOLOGY_ACCESS_TEST AS 
+update_query <- glue("CREATE TABLE ONCOLOGY_ACCESS  AS 
 SELECT CASE WHEN h.DEPT_NAME_DNU like 'X_%' AND TO_CHAR(EXTRACT(YEAR FROM h.APPT_DTTM)) = '2024' THEN REGEXP_REPLACE(h.DEPT_NAME_DNU, '^[X_]{2}', 'X_2024_') ELSE h.DEPT_NAME_DNU END AS DEPARTMENT_NAME, h.*, nvl(h.NEW_PT_ARRIVED_RAW, 'ESTABLISHED') AS NEW_PT_ARRIVED, count(*) over () totalRows
 FROM( 
 SELECT g.*, j.RACE_GROUPER, j.RACE_GROUPER_DETAIL, p.MYCHART_STATUS_GROUPER, m.ETHNICITY_GROUPER,
@@ -71,30 +71,30 @@ FROM(
     ) h 
 WHERE h.Counts = 1", .open = "{{", .close = "}}")
 
-oncology_index <- glue("CREATE index oncology_filter_index_test on ONCOLOGY_ACCESS_TEST (SITE, DEPARTMENT_NAME, DX_GROUPER, APPT_DTTM, APPT_DAY)")
-oncology_index_date <- glue("CREATE index oncology_filter_index_appt_dttm_test on ONCOLOGY_ACCESS_TEST (APPT_DTTM, DEPARTMENT_NAME)")
+oncology_index <- glue("CREATE index oncology_filter_index on ONCOLOGY_ACCESS  (SITE, DEPARTMENT_NAME, DX_GROUPER, APPT_DTTM, APPT_DAY)")
+oncology_index_date <- glue("CREATE index oncology_filter_index_appt_dttm  on ONCOLOGY_ACCESS  (APPT_DTTM, DEPARTMENT_NAME)")
 
-update_columns_ethnicity <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_TEST', 'ETHNICITY_GROUPER',
+update_columns_ethnicity <- glue("BEGIN fill_na('ONCOLOGY_ACCESS', 'ETHNICITY_GROUPER',
                                  'ETHNIC_BACKGROUND', 'BLANK/UNKNOWN'); END;")
 
-update_columns_race <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_TEST', 'RACE', 'RACE', 'BLANK'); END;")
+update_columns_race <- glue("BEGIN fill_na('ONCOLOGY_ACCESS ', 'RACE', 'RACE', 'BLANK'); END;")
 
-update_columns_race_grouper <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_TEST', 'RACE_GROUPER', 'RACE_GROUPER', 'BLANK/UNKNOWN'); END;")
+update_columns_race_grouper <- glue("BEGIN fill_na('ONCOLOGY_ACCESS', 'RACE_GROUPER', 'RACE_GROUPER', 'BLANK/UNKNOWN'); END;")
 
-update_columns_race_detail <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_TEST', 'RACE_GROUPER_DETAIL', 'RACE_GROUPER_DETAIL', 'BLANK/UNKNOWN'); END;")
+update_columns_race_detail <- glue("BEGIN fill_na('ONCOLOGY_ACCESS', 'RACE_GROUPER_DETAIL', 'RACE_GROUPER_DETAIL', 'BLANK/UNKNOWN'); END;")
 
 
-update_columns_my_chart <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_TEST', 'MYCHART_STATUS_GROUPER', 'MYCHART_STATUS', 'Not Activated'); END;")
+update_columns_my_chart <- glue("BEGIN fill_na('ONCOLOGY_ACCESS', 'MYCHART_STATUS_GROUPER', 'MYCHART_STATUS', 'Not Activated'); END;")
 
-update_columns_ref_provider <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_TEST', 'REFERRING_PROVIDER', 'REFERRING_PROVIDER', 'Unknown/Blank'); END;")
+update_columns_ref_provider <- glue("BEGIN fill_na('ONCOLOGY_ACCESS', 'REFERRING_PROVIDER', 'REFERRING_PROVIDER', 'Unknown/Blank'); END;")
 
-update_columns_dx_grouper <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_TEST', 'DX_GROUPER', 'DX_GROUPER', 'Non-Cancer'); END;")
+update_columns_dx_grouper <- glue("BEGIN fill_na('ONCOLOGY_ACCESS', 'DX_GROUPER', 'DX_GROUPER', 'Non-Cancer'); END;")
 
-update_columns_dx_detail <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_TEST', 'DX_DETAIL', 'DX_DETAIL', 'Non-Cancer'); END;")
+update_columns_dx_detail <- glue("BEGIN fill_na('ONCOLOGY_ACCESS', 'DX_DETAIL', 'DX_DETAIL', 'Non-Cancer'); END;")
 
-update_columns_new_pt_scheduled <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_TEST', 'NEW_PT_SCHEDULED', 'NEW_PT_SCHEDULED', 'ESTABLISHED'); END;")
+update_columns_new_pt_scheduled <- glue("BEGIN fill_na('ONCOLOGY_ACCESS', 'NEW_PT_SCHEDULED', 'NEW_PT_SCHEDULED', 'ESTABLISHED'); END;")
 
-update_genetics_infusion <- glue("UPDATE ONCOLOGY_ACCESS_TEST
+update_genetics_infusion <- glue("UPDATE ONCOLOGY_ACCESS
    SET ASSOCIATIONLISTA = 'Treatment',
    ASSOCIATIONLISTB = 'Treatment Visit',
    ASSOCIATIONLISTT = 'Genetic Infusion',
@@ -102,19 +102,19 @@ update_genetics_infusion <- glue("UPDATE ONCOLOGY_ACCESS_TEST
  WHERE DEPARTMENT_ID =  '8458037'
 ")
 
-oncology_filters_tbl <- glue("CREATE TABLE ONCOLOGY_FILTERS_UPDATED_TEST AS
-SELECT DISTINCT SITE, DEPARTMENT_NAME, PROVIDER, PROVIDER_TYPE, DISEASE_GROUP, DISEASE_GROUP_DETAIL, INPERSONVSTELE, ASSOCIATIONLISTA, ASSOCIATIONLISTB, ASSOCIATIONLISTT, REFERRING_PROVIDER, REFERRING_PROV_ID, DX_GROUPER, APPT_STATUS FROM ONCOLOGY_ACCESS_TEST")
+oncology_filters_tbl <- glue("CREATE TABLE ONCOLOGY_FILTERS_UPDATED AS
+SELECT DISTINCT SITE, DEPARTMENT_NAME, PROVIDER, PROVIDER_TYPE, DISEASE_GROUP, DISEASE_GROUP_DETAIL, INPERSONVSTELE, ASSOCIATIONLISTA, ASSOCIATIONLISTB, ASSOCIATIONLISTT, REFERRING_PROVIDER, REFERRING_PROV_ID, DX_GROUPER, APPT_STATUS FROM ONCOLOGY_ACCESS")
 
-oncology_filters_tbl_drop <- glue("DROP TABLE ONCOLOGY_FILTERS_UPDATED_TEST")
+oncology_filters_tbl_drop <- glue("DROP TABLE ONCOLOGY_FILTERS_UPDATED")
 
-oncology_active_treatment_table_drop <- glue("DROP TABLE ONCOLOGY_ACTIVE_TREATMENT_MRN_TEST")
+oncology_active_treatment_table_drop <- glue("DROP TABLE ONCOLOGY_ACTIVE_TREATMENT_MRN")
 
-oncology_active_treatment_table <- glue ("CREATE TABLE ONCOLOGY_ACTIVE_TREATMENT_MRN_TEST AS
-SELECT DISTINCT MRN FROM ONCOLOGY_ACCESS_TEST WHERE APPT_STATUS = 'Arrived' AND ASSOCIATIONLISTA = 'Treatment'")
+oncology_active_treatment_table <- glue ("CREATE TABLE ONCOLOGY_ACTIVE_TREATMENT_MRN AS
+SELECT DISTINCT MRN FROM ONCOLOGY_ACCESS WHERE APPT_STATUS = 'Arrived' AND ASSOCIATIONLISTA = 'Treatment'")
 
 tryCatch({
 dbBegin(con)
-if(dbExistsTable(con, "ONCOLOGY_ACCESS_TEST")) {
+if(dbExistsTable(con, "ONCOLOGY_ACCESS")) {
         dbExecute(con,drop_query)
   }
   dbExecute(con,update_query)
@@ -134,12 +134,12 @@ if(dbExistsTable(con, "ONCOLOGY_ACCESS_TEST")) {
 
 
 
-if(dbExistsTable(con, "ONCOLOGY_ACTIVE_TREATMENT_MRN_TEST")) {
+if(dbExistsTable(con, "ONCOLOGY_ACTIVE_TREATMENT_MRN")) {
         dbExecute(con,oncology_active_treatment_table_drop)
   }
   dbExecute(con,oncology_active_treatment_table)
 
-if(dbExistsTable(con, "ONCOLOGY_FILTERS_UPDATED_TEST")) {
+if(dbExistsTable(con, "ONCOLOGY_FILTERS_UPDATED")) {
         dbExecute(con,oncology_filters_tbl_drop)
   }
 dbExecute(con, oncology_filters_tbl)
