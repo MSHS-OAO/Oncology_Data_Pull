@@ -74,7 +74,7 @@ WHERE h.Counts = 1", .open = "{{", .close = "}}")
 oncology_index <- glue("CREATE index oncology_filter_index on ONCOLOGY_ACCESS  (SITE, DEPARTMENT_NAME, DX_GROUPER, APPT_DTTM, APPT_DAY)")
 oncology_index_date <- glue("CREATE index oncology_filter_index_appt_dttm  on ONCOLOGY_ACCESS  (APPT_DTTM, DEPARTMENT_NAME)")
 
-
+#Implementing procedures 
 update_columns_ethnicity <- glue("BEGIN fill_na('ONCOLOGY_ACCESS', 'ETHNICITY_GROUPER',
                                  'ETHNIC_BACKGROUND', 'BLANK/UNKNOWN'); END;")
 
