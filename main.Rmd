@@ -115,7 +115,7 @@ oncology_active_treatment_table <- glue ("CREATE TABLE ONCOLOGY_ACTIVE_TREATMENT
 SELECT DISTINCT MRN FROM ONCOLOGY_ACCESS_BASE WHERE APPT_STATUS = 'Arrived' AND ASSOCIATIONLISTA = 'Treatment'")
 
 oncology_main_table <- glue("CREATE TABLE ONCOLOGY_ACCESS AS
-                            SELECT * FROM ONCOLOGY_ACCESS_BASE a
+                            SELECT a.*, b.ACTIVE_MRN FROM ONCOLOGY_ACCESS_BASE a
                             LEFT JOIN ONCOLOGY_ACTIVE_MRN_MAPPING b
                             on a.MRN = b.MRN")
 
