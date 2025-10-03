@@ -6,6 +6,7 @@ date: '2022-08-16'
 
 
 ```{r cars}
+
 library(glue)
 library(odbc)
 library(tidyverse)
