@@ -1,11 +1,11 @@
 ---
-title: "main"
+title: "Oncology Data Pull"
 output: html_document
-date: '2022-08-16'
+date: '`r Sys.Date()`'
 ---
 
 
-```{r cars}
+```{r data pull}
 
 library(glue)
 library(odbc)
@@ -14,8 +14,7 @@ library(DBI)
 library(pool)
 
 #con <- dbPool(drv = odbc::odbc(), dsn = "OAO Cloud DB", timeout = 30)
-con <- dbConnect(drv = odbc(), "OAO Cloud DB Production", timeout = 30)
-print("con")
+con <- dbConnect(drv = odbc(), "OAO Cloud DB Staging Oracle", timeout = 30)
 
 drop_query <- glue("DROP TABLE ONCOLOGY_ACCESS_BASE")
 
@@ -23,54 +22,131 @@ date_1 <- "2019-01-01"
 date_2 <- Sys.Date() - 1
 reg_exp <- "\\[(.*?)\\]"
 
-update_query <- glue("CREATE TABLE ONCOLOGY_ACCESS_BASE  AS 
-SELECT CASE WHEN h.DEPT_NAME_DNU like 'X_%' AND TO_CHAR(EXTRACT(YEAR FROM h.APPT_DTTM)) = '2024' THEN REGEXP_REPLACE(h.DEPT_NAME_DNU, '^[X_]{2}', 'X_2024_') ELSE h.DEPT_NAME_DNU END AS DEPARTMENT_NAME, h.*, nvl(h.NEW_PT_ARRIVED_RAW, 'ESTABLISHED') AS NEW_PT_ARRIVED, count(*) over () totalRows
-FROM( 
-SELECT g.*, j.RACE_GROUPER, j.RACE_GROUPER_DETAIL, p.MYCHART_STATUS_GROUPER, m.ETHNICITY_GROUPER,
-ROW_NUMBER() OVER (PARTITION BY g.MRN, g.APPT_DTTM, g.APPT_TYPE, g.PROVIDER, g.APPT_STATUS ORDER BY g.MRN, g.APPT_DTTM, g.APPT_TYPE, g.PROVIDER, g.APPT_STATUS) AS Counts 
-FROM( 
-        Select a.DEPT_SPECIALTY_NAME, a.PROV_ID AS EPIC_PROVIDER_ID, a.REFERRING_PROV_NAME_WID, a.MRN, a.PAT_NAME AS Patient_Name, a.ZIP_CODE, a.PAT_ENC_CSN_ID,
-        a.BIRTH_DATE, a.FINCLASS AS Coverage, a.APPT_MADE_DTTM, a.APPT_DTTM, a.PRC_NAME AS APPT_TYPE, a.APPT_LENGTH AS APPT_DUR, a.DERIVED_STATUS_DESC AS APPT_STATUS, 
-        a.APPT_CANC_DTTM, a.CANCEL_REASON_NAME As CANCEL_REASON, a.SIGNIN_DTTM, a.PAGED_DTTM, a.CHECKIN_DTTM, a.ARVL_LIST_REMOVE_DTTM AS ARRIVAL_REMOVE_DTTM, a.ROOMED_DTTM, 
-        a.FIRST_ROOM_ASSIGN_DTTM AS ROOM_ASSIGNED_DTTM, a.PHYS_ENTER_DTTM AS PROVIDERIN_DTTM, a.VISIT_END_DTTM, 
-        a.CHECKOUT_DTTM, a.TIME_IN_ROOM_MINUTES, a.CYCLE_TIME_MINUTES, a.VISIT_GROUP_NUM AS NEW_PT, a.LOS_NAME AS CLASS_PT, a.APPT_ENTRY_USER_NAME_WID AS APPT_SOURCE, 
-        a.ACCESS_CENTER_SCHEDULED_YN AS ACCESS_CENTER, a.VISIT_METHOD, a.VISIT_PROV_STAFF_RESOURCE_C AS RESOURCES, a.PRIMARY_DX_CODE,
+update_query <- glue("
+CREATE TABLE ONCOLOGY_ACCESS_BASE AS
+WITH Raw_Patient_Data AS (
+    SELECT
+        -- Core Patient & Encounter Fields
+        a.DEPT_SPECIALTY_NAME,
+        a.PROV_ID AS EPIC_PROVIDER_ID,
+        a.REFERRING_PROV_NAME_WID,
+        a.MRN,
+        a.PAT_NAME AS Patient_Name,
+        a.ZIP_CODE,
+        a.PAT_ENC_CSN_ID,
+        a.BIRTH_DATE,
+        a.FINCLASS AS Coverage,
+        a.APPT_MADE_DTTM,
+        a.APPT_DTTM,
+        a.PRC_NAME AS APPT_TYPE,
+        a.APPT_LENGTH AS APPT_DUR,
+        a.DERIVED_STATUS_DESC AS APPT_STATUS,
+        a.APPT_CANC_DTTM,
+        a.CANCEL_REASON_NAME AS CANCEL_REASON,
+        a.SIGNIN_DTTM,
+        a.PAGED_DTTM,
+        a.CHECKIN_DTTM,
+        a.ARVL_LIST_REMOVE_DTTM AS ARRIVAL_REMOVE_DTTM,
+        a.ROOMED_DTTM,
+        a.FIRST_ROOM_ASSIGN_DTTM AS ROOM_ASSIGNED_DTTM,
+        a.PHYS_ENTER_DTTM AS PROVIDERIN_DTTM,
+        a.VISIT_END_DTTM,
+        a.CHECKOUT_DTTM,
+        a.TIME_IN_ROOM_MINUTES,
+        a.CYCLE_TIME_MINUTES,
+        a.VISIT_GROUP_NUM AS NEW_PT,
+        a.LOS_NAME AS CLASS_PT,
+        a.APPT_ENTRY_USER_NAME_WID AS APPT_SOURCE,
+        a.ACCESS_CENTER_SCHEDULED_YN AS ACCESS_CENTER,
+        a.VISIT_METHOD,
+        a.VISIT_PROV_STAFF_RESOURCE_C AS RESOURCES,
+        a.PRIMARY_DX_CODE,
         a.REFERRING_PROV_ID,
-        TO_CHAR(EXTRACT(year from a.APPT_DTTM)) Appt_Year, 
-        TO_CHAR(a.APPT_DTTM, 'DY') AS APPT_DAY, 
-        TO_CHAR(a.APPT_DTTM, 'MON') AS Appt_Month, 
-        TO_CHAR(a.APPT_DTTM, 'yyyy-mm') AS Appt_Month_Year, 
-        trunc(a.APPT_DTTM) AS Appt_Date_Year,
-        (a.Appt_DTTM - a.APPT_MADE_DTTM) AS Wait_Time,
-        trunc(a.APPT_MADE_DTTM) AS APPT_MADE_DATE_YEAR,
+        a.PAT_ID,
+        a.LOS_CODE,
+
+        -- Date Calculations & Year Logic
+        TO_CHAR(EXTRACT(YEAR FROM a.APPT_DTTM)) AS Appt_Year,
+        TO_CHAR(a.APPT_DTTM, 'DY') AS APPT_DAY,
+        TO_CHAR(a.APPT_DTTM, 'MON') AS Appt_Month,
+        TO_CHAR(a.APPT_DTTM, 'yyyy-mm') AS Appt_Month_Year,
+        TRUNC(a.APPT_DTTM) AS Appt_Date_Year,
+        (a.APPT_DTTM - a.APPT_MADE_DTTM) AS Wait_Time,
+        TRUNC(a.APPT_MADE_DTTM) AS APPT_MADE_DATE_YEAR,
         TO_CHAR(a.APPT_MADE_DTTM, 'yyyy-mm') AS Appt_Made_Month_Year,
+
+        -- New Patient Logic
         REGEXP_SUBSTR(a.PRC_NAME, 'NEW') AS NEW_PT_SCHEDULED,
         REGEXP_SUBSTR(a.LOS_NAME, 'NEW') AS NEW_PT_ARRIVED_RAW,
-        a.LOS_CODE, b.DEPARTMENT_NAME AS DEPT_NAME_DNU, b.DEPARTMENT_ID, b.SITE, c.ASSOCIATIONLISTA, c.ASSOCIATIONLISTB, c.ASSOCIATIONLISTT, 
-        a.PAT_ID,
-        c.INPERSONVSTELE, d.DISEASE_GROUP, d.DISEASE_GROUP_B AS DISEASE_GROUP_DETAIL, d.PROVIDER_TYPE, e.DX_DETAIL, e.DX_GROUPER, i.RACE, i.MYCHART_STATUS, z.ETHNIC_BACKGROUND,
-        TRIM(TRAILING FROM REGEXP_REPLACE(a.PROV_NAME_WID, '{{reg_exp}}', '')) AS Provider, 
-        TRIM(TRAILING FROM REGEXP_REPLACE(a.REFERRING_PROV_NAME_WID, '{{reg_exp}}', '')) AS Referring_Provider 
-        FROM MV_DM_PATIENT_ACCESS a 
-                            INNER JOIN ONCOLOGY_DEPARTMENT_GROUPINGS b on a.DEPARTMENT_ID = b.DEPARTMENT_ID and 
-                            (a.CONTACT_DATE BETWEEN TO_DATE('{{date_1}} 00:00:00', 'YYYY-MM-DD HH24:MI:SS') 
-                            AND TO_DATE('{{date_2}} 23:59:59', 'YYYY-MM-DD HH24:MI:SS') 
-                                OR a.APPT_MADE_DTTM BETWEEN TO_DATE('{{date_1}} 00:00:00', 'YYYY-MM-DD HH24:MI:SS')
-                                AND TO_DATE('{{date_2}} 23:59:59', 'YYYY-MM-DD HH24:MI:SS'))
-                          LEFT JOIN ONCOLOGY_PRC_GROUPINGS c on a.PRC_NAME = c.PRC_NAME 
-                          LEFT JOIN ONCOLOGY_DISEASE_GROUPINGS d on a.PROV_ID = d.EPIC_PROVIDER_ID 
-                          LEFT JOIN ONCOLOGY_DX_CODES e on a.PRIMARY_DX_CODE = e.PRIMARY_DX_CODE 
-                          LEFT JOIN MV_PATIENT_SELECT_DEMOGRAPHICS i on a.PAT_ID = i.PAT_ID
-                          LEFT JOIN ONCOLOGY_ETHNIC_BACKGROUND_PULL z on a.PAT_ID = z.PAT_ID
-                                      LEFT JOIN ONCOLOGY_LOS_EXCLUSIONS f on a.LOS_CODE = f.LOS_CODE 
-                                                                    WHERE f.LOS_CODE IS NULL 
-                                                                    
-        ) g 
-        LEFT JOIN ONCOLOGY_RACE_GROUPER j on LOWER(g.RACE) = LOWER(j.RACE)
-        LEFT JOIN ONCOLOGY_MYCHART_STATUS_GROUPER p on LOWER(g.MYCHART_STATUS) = LOWER(p.MYCHART_STATUS)
-        LEFT JOIN ONCOLOGY_ETHNICITY_GROUPER m on LOWER(g.ETHNIC_BACKGROUND) = LOWER(m.ETHNIC_BACKGROUND)
-    ) h 
-WHERE h.Counts = 1", .open = "{{", .close = "}}")
+
+        -- Joined Table Fields
+        b.DEPARTMENT_NAME AS DEPT_NAME_DNU,
+        b.DEPARTMENT_ID,
+        b.SITE,
+        c.ASSOCIATIONLISTA,
+        c.ASSOCIATIONLISTB,
+        c.ASSOCIATIONLISTT,
+        c.INPERSONVSTELE,
+        d.DISEASE_GROUP,
+        d.DISEASE_GROUP_B AS DISEASE_GROUP_DETAIL,
+        d.PROVIDER_TYPE,
+        e.DESCRIPTION as DX_DETAIL,
+        REPLACE(e.DEFINITION, 'Oncology-', '') AS DX_GROUPER,
+        i.RACE,
+        i.MYCHART_STATUS,
+        z.ETHNIC_BACKGROUND,
+
+        -- Cleaned Provider Names
+        TRIM(TRAILING FROM REGEXP_REPLACE(a.PROV_NAME_WID, '{{reg_exp}}', '')) AS Provider,
+        TRIM(TRAILING FROM REGEXP_REPLACE(a.REFERRING_PROV_NAME_WID, '{{reg_exp}}', '')) AS Referring_Provider
+
+    FROM MV_DM_PATIENT_ACCESS a
+    INNER JOIN ONCOLOGY_DEPARTMENT_GROUPINGS b ON a.DEPARTMENT_ID = b.DEPARTMENT_ID
+    LEFT JOIN ONCOLOGY_PRC_GROUPINGS c ON a.PRC_NAME = c.PRC_NAME
+    LEFT JOIN ONCOLOGY_DISEASE_GROUPINGS d ON a.PROV_ID = d.EPIC_PROVIDER_ID
+    LEFT JOIN VIZIENT2023_CANCER_GROUPER e ON a.PRIMARY_DX_CODE = e.EPIC_ICD10_CODE
+    LEFT JOIN MV_PATIENT_SELECT_DEMOGRAPHICS i ON a.PAT_ID = i.PAT_ID
+    LEFT JOIN ONCOLOGY_ETHNIC_BACKGROUND_PULL z ON a.PAT_ID = z.PAT_ID
+    LEFT JOIN ONCOLOGY_LOS_EXCLUSIONS f ON a.LOS_CODE = f.LOS_CODE
+    WHERE f.LOS_CODE IS NULL
+      AND (
+          a.CONTACT_DATE BETWEEN TO_DATE('{{date_1}} 00:00:00', 'YYYY-MM-DD HH24:MI:SS') AND TO_DATE('{{date_2}} 23:59:59', 'YYYY-MM-DD HH24:MI:SS')
+          OR
+          a.APPT_MADE_DTTM BETWEEN TO_DATE('{{date_1}} 00:00:00', 'YYYY-MM-DD HH24:MI:SS') AND TO_DATE('{{date_2}} 23:59:59', 'YYYY-MM-DD HH24:MI:SS')
+      )
+),
+
+Deduplicated_Data AS (
+    SELECT
+        rd.*,
+        j.RACE_GROUPER,
+        j.RACE_GROUPER_DETAIL,
+        p.MYCHART_STATUS_GROUPER,
+        m.ETHNICITY_GROUPER,
+        ROW_NUMBER() OVER (
+            PARTITION BY rd.MRN, rd.APPT_DTTM, rd.APPT_TYPE, rd.EPIC_PROVIDER_ID, rd.APPT_STATUS
+            ORDER BY rd.MRN, rd.APPT_DTTM, rd.APPT_TYPE, rd.EPIC_PROVIDER_ID, rd.APPT_STATUS
+        ) AS Row_Counts
+    FROM Raw_Patient_Data rd
+    LEFT JOIN ONCOLOGY_RACE_GROUPER j ON LOWER(rd.RACE) = LOWER(j.RACE)
+    LEFT JOIN ONCOLOGY_MYCHART_STATUS_GROUPER p ON LOWER(rd.MYCHART_STATUS) = LOWER(p.MYCHART_STATUS)
+    LEFT JOIN ONCOLOGY_ETHNICITY_GROUPER m ON LOWER(rd.ETHNIC_BACKGROUND) = LOWER(m.ETHNIC_BACKGROUND)
+)
+
+SELECT
+    CASE
+        WHEN h.DEPT_NAME_DNU LIKE 'X_%'
+             AND h.APPT_DTTM >= TO_DATE('2024-01-01', 'YYYY-MM-DD')
+             AND h.APPT_DTTM < TO_DATE('2025-01-01', 'YYYY-MM-DD')
+        THEN REGEXP_REPLACE(h.DEPT_NAME_DNU, '^[X_]{2}', 'X_2024_')
+        ELSE h.DEPT_NAME_DNU
+    END AS DEPARTMENT_NAME,
+    h.*,
+    NVL(h.NEW_PT_ARRIVED_RAW, 'ESTABLISHED') AS NEW_PT_ARRIVED,
+    COUNT(*) OVER () AS totalRows
+FROM Deduplicated_Data h
+WHERE h.Row_Counts = 1;", 
+.open = "{{", .close = "}}")
 
 oncology_index <- glue("CREATE index oncology_filter_index on ONCOLOGY_ACCESS_BASE  (SITE, DEPARTMENT_NAME, DX_GROUPER, APPT_DTTM, APPT_DAY)")
 oncology_index_date <- glue("CREATE index oncology_filter_index_appt_dttm  on ONCOLOGY_ACCESS_BASE  (APPT_DTTM, DEPARTMENT_NAME)")
@@ -127,7 +203,7 @@ if(dbExistsTable(con, "ONCOLOGY_ACCESS_BASE")) {
   }
   dbExecute(con,update_query)
   dbExecute(con,oncology_index)
-    dbExecute(con,oncology_index_date)
+  dbExecute(con,oncology_index_date)
   dbExecute(con,update_columns_ethnicity)
   dbExecute(con,update_columns_race_grouper)
   dbExecute(con,update_columns_race_detail)
