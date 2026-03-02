@@ -13,8 +13,8 @@ library(tidyverse)
 library(DBI)
 library(pool)
 
-#con <- dbPool(drv = odbc::odbc(), dsn = "OAO Cloud DB", timeout = 30)
-con <- dbConnect(drv = odbc(), "OAO Cloud DB Staging Oracle", timeout = 30)
+con <- dbPool(drv = odbc::odbc(), dsn = "OAO Cloud DB", timeout = 30)
+# con <- dbConnect(drv = odbc(), "OAO Cloud DB Staging Oracle", timeout = 30)
 
 drop_query <- glue("DROP TABLE ONCOLOGY_ACCESS_BASE")
 
