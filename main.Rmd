@@ -131,9 +131,7 @@ Deduplicated_Data AS (
     LEFT JOIN ONCOLOGY_RACE_GROUPER j ON LOWER(rd.RACE) = LOWER(j.RACE)
     LEFT JOIN ONCOLOGY_MYCHART_STATUS_GROUPER p ON LOWER(rd.MYCHART_STATUS) = LOWER(p.MYCHART_STATUS)
     LEFT JOIN ONCOLOGY_ETHNICITY_GROUPER m ON LOWER(rd.ETHNIC_BACKGROUND) = LOWER(m.ETHNIC_BACKGROUND)
-)
-
-SELECT
+) SELECT
     CASE
         WHEN h.DEPT_NAME_DNU LIKE 'X_%'
              AND h.APPT_DTTM >= TO_DATE('2024-01-01', 'YYYY-MM-DD')
@@ -197,49 +195,51 @@ oncology_main_table <- glue("CREATE TABLE ONCOLOGY_ACCESS AS
                             on a.MRN = b.MRN")
 
 tryCatch({
-dbBegin(con)
-if(dbExistsTable(con, "ONCOLOGY_ACCESS_BASE")) {
-        dbExecute(con,drop_query)
+conn <- poolCheckout(con)
+dbBegin(conn)
+if(dbExistsTable(conn, "ONCOLOGY_ACCESS_BASE")) {
+        dbExecute(conn,drop_query)
   }
-  dbExecute(con,update_query)
-  dbExecute(con,oncology_index)
-  dbExecute(con,oncology_index_date)
-  dbExecute(con,update_columns_ethnicity)
-  dbExecute(con,update_columns_race_grouper)
-  dbExecute(con,update_columns_race_detail)
-  dbExecute(con,update_columns_race)
-  dbExecute(con,update_columns_my_chart)
-  dbExecute(con,update_columns_ref_provider)
-  dbExecute(con,update_columns_dx_grouper)
-  dbExecute(con,update_columns_dx_detail)
-  dbExecute(con,update_genetics_infusion)
-  dbExecute(con,update_columns_new_pt_scheduled)
+  dbExecute(conn,update_query)
+  dbExecute(conn,oncology_index)
+  dbExecute(conn,oncology_index_date)
+  dbExecute(conn,update_columns_ethnicity)
+  dbExecute(conn,update_columns_race_grouper)
+  dbExecute(conn,update_columns_race_detail)
+  dbExecute(conn,update_columns_race)
+  dbExecute(conn,update_columns_my_chart)
+  dbExecute(conn,update_columns_ref_provider)
+  dbExecute(conn,update_columns_dx_grouper)
+  dbExecute(conn,update_columns_dx_detail)
+  dbExecute(conn,update_genetics_infusion)
+  dbExecute(conn,update_columns_new_pt_scheduled)
 
-if(dbExistsTable(con, "ONCOLOGY_ACCESS")) {
-        dbExecute(con,"DROP TABLE ONCOLOGY_ACCESS")
+if(dbExistsTable(conn, "ONCOLOGY_ACCESS")) {
+        dbExecute(conn,"DROP TABLE ONCOLOGY_ACCESS")
 }
-  dbExecute(con, oncology_main_table)
+  dbExecute(conn, oncology_main_table)
 
 
-if(dbExistsTable(con, "ONCOLOGY_ACTIVE_TREATMENT_MRN")) {
-        dbExecute(con,oncology_active_treatment_table_drop)
+if(dbExistsTable(conn, "ONCOLOGY_ACTIVE_TREATMENT_MRN")) {
+        dbExecute(conn,oncology_active_treatment_table_drop)
   }
-  dbExecute(con,oncology_active_treatment_table)
+  dbExecute(conn,oncology_active_treatment_table)
 
-if(dbExistsTable(con, "ONCOLOGY_FILTERS_UPDATED")) {
-        dbExecute(con,oncology_filters_tbl_drop)
+if(dbExistsTable(conn, "ONCOLOGY_FILTERS_UPDATED")) {
+        dbExecute(conn,oncology_filters_tbl_drop)
   }
-dbExecute(con, oncology_filters_tbl)
+dbExecute(conn, oncology_filters_tbl)
 
 
-  dbCommit(con)
-
+  dbCommit(conn)
+poolReturn(conn)
   
 },
  error = function(err){
     print(err)
-    dbRollback(con)
-    dbDisconnect(con)
+    dbRollback(conn)
+    dbDisconnect(conn)
+    poolReturn(conn)
 })
 print("pool")
 ```
