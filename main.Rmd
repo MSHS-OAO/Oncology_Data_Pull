@@ -13,8 +13,8 @@ library(tidyverse)
 library(DBI)
 library(pool)
 
-con <- dbPool(drv = odbc::odbc(), dsn = "OAO Cloud DB Production", timeout = 30)
-# con <- dbConnect(drv = odbc(), "OAO Cloud DB Staging Oracle", timeout = 30)
+# con <- dbPool(drv = odbc::odbc(), dsn = "OAO Cloud DB Production", timeout = 30)
+con <- dbConnect(drv = odbc(), "OAO Cloud DB Staging Oracle", timeout = 30)
 
 drop_query <- glue("DROP TABLE ONCOLOGY_ACCESS_BASE")
 
@@ -189,10 +189,19 @@ oncology_active_treatment_table_drop <- glue("DROP TABLE ONCOLOGY_ACTIVE_TREATME
 oncology_active_treatment_table <- glue ("CREATE TABLE ONCOLOGY_ACTIVE_TREATMENT_MRN AS
 SELECT DISTINCT MRN FROM ONCOLOGY_ACCESS_BASE WHERE APPT_STATUS = 'Arrived' AND ASSOCIATIONLISTA = 'Treatment'")
 
+
+# Table for dashbaord
+# Added exception for DEPARTMENT_ID = 8849025 based on Oncology Team's request on 03/13/2026
 oncology_main_table <- glue("CREATE TABLE ONCOLOGY_ACCESS AS
                             SELECT a.*, b.ACTIVE_MRN FROM ONCOLOGY_ACCESS_BASE a
                             LEFT JOIN ONCOLOGY_ACTIVE_MRN_MAPPING b
-                            on a.MRN = b.MRN")
+                            on a.MRN = b.MRN
+                            WHERE DEPARTMENT_ID != 8849025
+                            UNION 
+                            SELECT a.*, b.ACTIVE_MRN FROM ONCOLOGY_ACCESS_BASE a
+                            LEFT JOIN ONCOLOGY_ACTIVE_MRN_MAPPING b
+                            on a.MRN = b.MRN
+                            WHERE DEPARTMENT_ID = 8849025 AND EPIC_PROVIDER_ID = '184137'")
 
 tryCatch({
 conn <- poolCheckout(con)
