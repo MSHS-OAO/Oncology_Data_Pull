@@ -241,8 +241,9 @@ dbExecute(conn, oncology_filters_tbl)
 
 
   dbCommit(conn)
-poolReturn(conn)
-  
+# poolReturn(conn)
+  dbDisconnect(conn)
+
 },
  error = function(err){
     print(err)
