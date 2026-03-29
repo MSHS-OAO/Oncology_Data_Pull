@@ -204,7 +204,7 @@ oncology_main_table <- glue("CREATE TABLE ONCOLOGY_ACCESS AS
                             WHERE DEPARTMENT_ID = 8849025 AND EPIC_PROVIDER_ID = '184137'")
 
 tryCatch({
-conn <- dbConnect(odbc(),"OAO Cloud DB Staging")
+conn <- dbConnect(odbc(),"OAO Cloud DB Production")
 dbBegin(conn)
 if(dbExistsTable(conn, "ONCOLOGY_ACCESS_BASE")) {
         dbExecute(conn,drop_query)
