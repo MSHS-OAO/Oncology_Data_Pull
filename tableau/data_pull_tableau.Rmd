@@ -1,0 +1,278 @@
+---
+title: "Oncology Data Pull"
+output: html_document
+date: '`r Sys.Date()`'
+---
+
+
+```{r data pull}
+
+library(glue)
+library(odbc)
+library(tidyverse)
+library(DBI)
+library(pool)
+
+con <- dbConnect(drv = odbc::odbc(), dsn = "OAO Cloud DB Production", timeout = 30)
+# con <- dbConnect(drv = odbc(), "OAO Cloud DB Staging", timeout = 30)
+
+drop_query <- glue("DROP TABLE ONCOLOGY_ACCESS_BASE_TABLEAU")
+
+date_1 <- "2019-01-01"
+date_2 <- Sys.Date() - 1
+reg_exp <- "\\[(.*?)\\]"
+
+update_query <- glue("
+CREATE TABLE ONCOLOGY_ACCESS_BASE_TABLEAU AS
+WITH Raw_Patient_Data AS (
+    SELECT
+        -- Core Patient & Encounter Fields
+        a.DEPT_SPECIALTY_NAME,
+        a.PROV_ID AS EPIC_PROVIDER_ID,
+        a.REFERRING_PROV_NAME_WID,
+        a.MRN,
+        a.PAT_NAME AS Patient_Name,
+        a.ZIP_CODE,
+        a.PAT_ENC_CSN_ID,
+        a.BIRTH_DATE,
+        a.FINCLASS AS Coverage,
+        a.APPT_MADE_DTTM,
+        a.APPT_DTTM,
+        a.PRC_NAME AS APPT_TYPE,
+        a.APPT_LENGTH AS APPT_DUR,
+        a.DERIVED_STATUS_DESC AS APPT_STATUS,
+        a.APPT_CANC_DTTM,
+        a.CANCEL_REASON_NAME AS CANCEL_REASON,
+        a.SIGNIN_DTTM,
+        a.PAGED_DTTM,
+        a.CHECKIN_DTTM,
+        a.ARVL_LIST_REMOVE_DTTM AS ARRIVAL_REMOVE_DTTM,
+        a.ROOMED_DTTM,
+        a.FIRST_ROOM_ASSIGN_DTTM AS ROOM_ASSIGNED_DTTM,
+        a.PHYS_ENTER_DTTM AS PROVIDERIN_DTTM,
+        a.VISIT_END_DTTM,
+        a.CHECKOUT_DTTM,
+        a.TIME_IN_ROOM_MINUTES,
+        a.CYCLE_TIME_MINUTES,
+        a.VISIT_GROUP_NUM AS NEW_PT,
+        a.LOS_NAME AS CLASS_PT,
+        a.APPT_ENTRY_USER_NAME_WID AS APPT_SOURCE,
+        a.ACCESS_CENTER_SCHEDULED_YN AS ACCESS_CENTER,
+        a.VISIT_METHOD,
+        a.VISIT_PROV_STAFF_RESOURCE_C AS RESOURCES,
+        a.PRIMARY_DX_CODE,
+        a.REFERRING_PROV_ID,
+        a.PAT_ID,
+        a.LOS_CODE,
+
+        -- Date Calculations & Year Logic
+        TO_CHAR(EXTRACT(YEAR FROM a.APPT_DTTM)) AS Appt_Year,
+        TO_CHAR(a.APPT_DTTM, 'DY') AS APPT_DAY,
+        TO_CHAR(a.APPT_DTTM, 'MON') AS Appt_Month,
+        TO_CHAR(a.APPT_DTTM, 'yyyy-mm') AS Appt_Month_Year,
+        TRUNC(a.APPT_DTTM) AS Appt_Date_Year,
+        (a.APPT_DTTM - a.APPT_MADE_DTTM) AS Wait_Time,
+        TRUNC(a.APPT_MADE_DTTM) AS APPT_MADE_DATE_YEAR,
+        TO_CHAR(a.APPT_MADE_DTTM, 'yyyy-mm') AS Appt_Made_Month_Year,
+
+        -- New Patient Logic
+        REGEXP_SUBSTR(a.PRC_NAME, 'NEW') AS NEW_PT_SCHEDULED,
+        REGEXP_SUBSTR(a.LOS_NAME, 'NEW') AS NEW_PT_ARRIVED_RAW,
+
+        -- Joined Table Fields
+        b.DEPARTMENT_NAME AS DEPT_NAME_DNU,
+        b.DEPARTMENT_ID,
+        b.SITE,
+        c.PRC_NAME,
+        c.ASSOCIATIONLISTA,
+        c.ASSOCIATIONLISTB,
+        c.ASSOCIATIONLISTT,
+        c.ASSOCIATIONLISTR,
+        d.DISEASE_GROUP,
+        d.DISEASE_GROUP_B AS DISEASE_GROUP_DETAIL,
+        d.PROVIDER_TYPE,
+        e.DESCRIPTION as DX_DETAIL,
+        REPLACE(e.DEFINITION, 'Oncology-', '') AS DX_GROUPER,
+        i.RACE,
+        i.MYCHART_STATUS,
+        z.ETHNIC_BACKGROUND,
+
+        -- Cleaned Provider Names
+        TRIM(TRAILING FROM REGEXP_REPLACE(a.PROV_NAME_WID, '{{reg_exp}}', '')) AS Provider,
+        TRIM(TRAILING FROM REGEXP_REPLACE(a.REFERRING_PROV_NAME_WID, '{{reg_exp}}', '')) AS Referring_Provider
+
+    FROM MV_DM_PATIENT_ACCESS a
+    INNER JOIN ONCOLOGY_DEPARTMENT_GROUPINGS_TABLEAU b ON a.DEPARTMENT_ID = b.DEPARTMENT_ID
+    LEFT JOIN ONCOLOGY_PRC_GROUPINGS_TABLEAU c ON a.PRC_NAME = c.PRC_NAME
+    LEFT JOIN ONCOLOGY_DISEASE_GROUPINGS_TABLEAU d ON a.PROV_ID = d.EPIC_PROVIDER_ID
+    LEFT JOIN VIZIENT_CANCER_GROUPER e ON a.PRIMARY_DX_CODE = e.EPIC_ICD10_CODE
+    LEFT JOIN MV_PATIENT_SELECT_DEMOGRAPHICS i ON a.PAT_ID = i.PAT_ID
+    LEFT JOIN ONCOLOGY_ETHNIC_BACKGROUND_PULL z ON a.PAT_ID = z.PAT_ID
+    LEFT JOIN ONCOLOGY_LOS_EXCLUSIONS_TABLEAU f ON a.LOS_CODE = f.LOS_CODE
+    WHERE f.LOS_CODE IS NULL
+      AND (
+          a.CONTACT_DATE BETWEEN TO_DATE('{{date_1}} 00:00:00', 'YYYY-MM-DD HH24:MI:SS') AND TO_DATE('{{date_2}} 23:59:59', 'YYYY-MM-DD HH24:MI:SS')
+          OR
+          a.APPT_MADE_DTTM BETWEEN TO_DATE('{{date_1}} 00:00:00', 'YYYY-MM-DD HH24:MI:SS') AND TO_DATE('{{date_2}} 23:59:59', 'YYYY-MM-DD HH24:MI:SS')
+      )
+),
+ 
+Deduplicated_Data AS (
+    SELECT
+        rd.*,
+        j.RACE_GROUPER,
+        j.RACE_GROUPER_DETAIL,
+        p.MYCHART_STATUS_GROUPER,
+        m.ETHNICITY_GROUPER,
+        ROW_NUMBER() OVER (
+            PARTITION BY rd.MRN, rd.APPT_DTTM, rd.APPT_TYPE, rd.EPIC_PROVIDER_ID, rd.APPT_STATUS
+            ORDER BY rd.MRN, rd.APPT_DTTM, rd.APPT_TYPE, rd.EPIC_PROVIDER_ID, rd.APPT_STATUS
+        ) AS Row_Counts
+    FROM Raw_Patient_Data rd
+    LEFT JOIN ONCOLOGY_RACE_GROUPER_TABLEAU j ON LOWER(rd.RACE) = LOWER(j.RACE)
+    LEFT JOIN ONCOLOGY_MYCHART_STATUS_GROUPER p ON LOWER(rd.MYCHART_STATUS) = LOWER(p.MYCHART_STATUS)
+    LEFT JOIN ONCOLOGY_ETHNICITY_GROUPER_TABLEAU m ON LOWER(rd.ETHNIC_BACKGROUND) = LOWER(m.ETHNIC_BACKGROUND)
+) SELECT
+    CASE
+        WHEN h.DEPT_NAME_DNU LIKE 'X_%'
+             AND h.APPT_DTTM >= TO_DATE('2024-01-01', 'YYYY-MM-DD')
+             AND h.APPT_DTTM < TO_DATE('2025-01-01', 'YYYY-MM-DD')
+        THEN REGEXP_REPLACE(h.DEPT_NAME_DNU, '^[X_]{2}', 'X_2024_')
+        ELSE h.DEPT_NAME_DNU
+    END AS DEPARTMENT_NAME,
+    h.*,
+    NVL(h.NEW_PT_ARRIVED_RAW, 'ESTABLISHED') AS NEW_PT_ARRIVED,
+    COUNT(*) OVER () AS totalRows
+FROM Deduplicated_Data h
+WHERE h.Row_Counts = 1;", 
+.open = "{{", .close = "}}")
+
+oncology_index <- glue("CREATE index oncology_filter_index_tableau on ONCOLOGY_ACCESS_BASE_TABLEAU  (SITE, DEPARTMENT_NAME, DX_GROUPER, APPT_DTTM, APPT_DAY)")
+oncology_index_date <- glue("CREATE index oncology_filter_index_appt_dttm_tableau  on ONCOLOGY_ACCESS_BASE_TABLEAU  (APPT_DTTM, DEPARTMENT_NAME)")
+
+#Implementing procedures 
+update_columns_ethnicity <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_BASE_TABLEAU', 'ETHNICITY_GROUPER',
+                                 'ETHNIC_BACKGROUND', 'BLANK/UNKNOWN'); END;")
+
+update_columns_race <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_BASE_TABLEAU', 'RACE', 'RACE', 'BLANK'); END;")
+
+update_columns_race_grouper <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_BASE_TABLEAU', 'RACE_GROUPER', 'RACE_GROUPER', 'BLANK/UNKNOWN'); END;")
+
+update_columns_race_detail <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_BASE_TABLEAU', 'RACE_GROUPER_DETAIL', 'RACE_GROUPER_DETAIL', 'BLANK/UNKNOWN'); END;")
+
+
+update_columns_my_chart <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_BASE_TABLEAU', 'MYCHART_STATUS_GROUPER', 'MYCHART_STATUS', 'Not Activated'); END;")
+
+update_columns_ref_provider <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_BASE_TABLEAU', 'REFERRING_PROVIDER', 'REFERRING_PROVIDER', 'Unknown/Blank'); END;")
+
+update_columns_dx_grouper <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_BASE_TABLEAU', 'DX_GROUPER', 'DX_GROUPER', 'Non-Cancer'); END;")
+
+update_columns_dx_detail <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_BASE_TABLEAU', 'DX_DETAIL', 'DX_DETAIL', 'Non-Cancer'); END;")
+
+update_columns_new_pt_scheduled <- glue("BEGIN fill_na('ONCOLOGY_ACCESS_BASE_TABLEAU', 'NEW_PT_SCHEDULED', 'NEW_PT_SCHEDULED', 'ESTABLISHED'); END;")
+
+
+# update_genetics_infusion <- glue("UPDATE ONCOLOGY_ACCESS_BASE_TABLEAU
+#    SET ASSOCIATIONLISTA = 'Treatment',
+#    ASSOCIATIONLISTB = 'Treatment Visit',
+#    ASSOCIATIONLISTT = 'Genetic Infusion'
+#  WHERE DEPARTMENT_ID =  '8458037'
+# ")
+
+oncology_filters_tbl <- glue("CREATE TABLE ONCOLOGY_FILTERS_UPDATED_TABLEAU AS
+SELECT DISTINCT SITE, DEPARTMENT_NAME, PROVIDER, PROVIDER_TYPE, DISEASE_GROUP, DISEASE_GROUP_DETAIL, ASSOCIATIONLISTA, ASSOCIATIONLISTB, ASSOCIATIONLISTT, REFERRING_PROVIDER, REFERRING_PROV_ID, DX_GROUPER, APPT_STATUS FROM ONCOLOGY_ACCESS_BASE_TABLEAU")
+
+oncology_filters_tbl_drop <- glue("DROP TABLE ONCOLOGY_FILTERS_UPDATED_TABLEAU")
+
+oncology_active_treatment_table_drop <- glue("DROP TABLE ONCOLOGY_ACTIVE_TREATMENT_MRN_TABLEAU")
+
+oncology_active_treatment_table <- glue ("CREATE TABLE ONCOLOGY_ACTIVE_TREATMENT_MRN_TABLEAU AS
+SELECT DISTINCT MRN FROM ONCOLOGY_ACCESS_BASE_TABLEAU WHERE APPT_STATUS = 'Arrived' AND ASSOCIATIONLISTA = 'Treatment'")
+
+
+# Table for dashboard
+# Added exception for DEPARTMENT_ID = 8849025 based on Oncology Team's request on 03/13/2026
+oncology_main_table <- glue("
+CREATE TABLE ONCOLOGY_ACCESS_TABLEAU AS
+
+WITH oncology_data AS (
+
+    SELECT 
+        a.*,
+        b.ACTIVE_MRN
+    FROM ONCOLOGY_ACCESS_BASE_TABLEAU a
+    LEFT JOIN ONCOLOGY_ACTIVE_MRN_MAPPING_TABLEAU b
+        ON a.MRN = b.MRN
+    WHERE a.DEPARTMENT_ID != 8849025
+
+    UNION
+
+    SELECT 
+        a.*,
+        b.ACTIVE_MRN
+    FROM ONCOLOGY_ACCESS_BASE_TABLEAU a
+    LEFT JOIN ONCOLOGY_ACTIVE_MRN_MAPPING_TABLEAU b
+        ON a.MRN = b.MRN
+    WHERE a.DEPARTMENT_ID = 8849025
+      AND a.EPIC_PROVIDER_ID = '184137'
+)
+
+SELECT
+    o.*,
+    h.HOLIDAY
+FROM oncology_data o
+LEFT JOIN HOLIDAYS h
+    ON TRUNC(o.APPT_DTTM) = h.DATES
+")
+
+tryCatch({
+conn <- dbConnect(odbc(),"OAO Cloud DB Production")
+dbBegin(conn)
+if(dbExistsTable(conn, "ONCOLOGY_ACCESS_BASE_TABLEAU")) {
+        dbExecute(conn,drop_query)
+  }
+  dbExecute(conn,update_query)
+  dbExecute(conn,oncology_index)
+  dbExecute(conn,oncology_index_date)
+  dbExecute(conn,update_columns_ethnicity)
+  dbExecute(conn,update_columns_race_grouper)
+  dbExecute(conn,update_columns_race_detail)
+  dbExecute(conn,update_columns_race)
+  dbExecute(conn,update_columns_my_chart)
+  dbExecute(conn,update_columns_ref_provider)
+  dbExecute(conn,update_columns_dx_grouper)
+  dbExecute(conn,update_columns_dx_detail)
+  #dbExecute(conn,update_genetics_infusion)
+  dbExecute(conn,update_columns_new_pt_scheduled)
+
+if(dbExistsTable(conn, "ONCOLOGY_ACCESS_TABLEAU")) {
+        dbExecute(conn,"DROP TABLE ONCOLOGY_ACCESS_TABLEAU")
+}
+  dbExecute(conn, oncology_main_table)
+
+
+if(dbExistsTable(conn, "ONCOLOGY_ACTIVE_TREATMENT_MRN_TABLEAU")) {
+        dbExecute(conn,oncology_active_treatment_table_drop)
+  }
+  dbExecute(conn,oncology_active_treatment_table)
+
+if(dbExistsTable(conn, "ONCOLOGY_FILTERS_UPDATED_TABLEAU")) {
+        dbExecute(conn,oncology_filters_tbl_drop)
+  }
+dbExecute(conn, oncology_filters_tbl)
+
+
+  dbCommit(conn)
+# poolReturn(conn)
+  dbDisconnect(conn)
+
+},
+ error = function(err){
+    print(err)
+    dbRollback(conn)
+    dbDisconnect(conn)
+    # poolReturn(conn)
+})
+print("pool")
+```
+
