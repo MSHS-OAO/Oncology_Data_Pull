@@ -13,7 +13,7 @@ library(tidyverse)
 library(DBI)
 library(pool)
 
-con <- dbConnect(drv = odbc::odbc(), dsn = "OAO Cloud DB Production", timeout = 30)
+#con <- dbConnect(drv = odbc::odbc(), dsn = "OAO Cloud DB Production", timeout = 30)
 # con <- dbConnect(drv = odbc(), "OAO Cloud DB Staging", timeout = 30)
 
 drop_query <- glue("DROP TABLE ONCOLOGY_ACCESS_BASE_TABLEAU")
@@ -226,7 +226,12 @@ LEFT JOIN HOLIDAYS h
 ")
 
 tryCatch({
-conn <- dbConnect(odbc(),"OAO Cloud DB Production")
+conn <- dbConnect(
+    drv = odbc(),
+    "OAO Cloud DB Production",
+    timeout = 30
+)
+
 dbBegin(conn)
 if(dbExistsTable(conn, "ONCOLOGY_ACCESS_BASE_TABLEAU")) {
         dbExecute(conn,drop_query)
@@ -265,6 +270,8 @@ dbExecute(conn, oncology_filters_tbl)
   dbCommit(conn)
 # poolReturn(conn)
   dbDisconnect(conn)
+  print("SUCCESS")
+
 
 },
  error = function(err){
@@ -273,6 +280,5 @@ dbExecute(conn, oncology_filters_tbl)
     dbDisconnect(conn)
     # poolReturn(conn)
 })
-print("pool")
 ```
 
