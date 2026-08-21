@@ -1,3 +1,4 @@
+```{r}
 library(DBI)
 library(odbc)
 
@@ -19,11 +20,12 @@ objects <- c(
 
 for (obj in objects) {
 
-  cat("\nTesting:", obj, "\n")
+  cat("\n-----------------------------\n")
+  cat("TESTING:", obj, "\n")
 
   tryCatch({
 
-    result <- dbGetQuery(
+    dbGetQuery(
       conn,
       paste0(
         "SELECT * FROM ",
@@ -43,3 +45,4 @@ for (obj in objects) {
 }
 
 dbDisconnect(conn)
+```
