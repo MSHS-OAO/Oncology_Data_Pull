@@ -83,6 +83,7 @@ WITH Raw_Patient_Data AS (
         b.DEPARTMENT_NAME AS DEPT_NAME_DNU,
         b.DEPARTMENT_ID,
         b.SITE,
+        b.DEPARTMENT_TYPE,
         c.PRC_NAME,
         c.ASSOCIATIONLISTA,
         c.ASSOCIATIONLISTB,
